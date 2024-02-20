@@ -11,7 +11,7 @@ def random_sample_from_list(input_list, range_start, range_end):
     return random_items
 
 
-def generate_game_states(word):
+def generate_game_states(word, alphabet='abcdefghijklmnopqrstuvwxyz'):
     all_game_states = []
     iterations = 500
     for _ in range(iterations):
@@ -34,15 +34,21 @@ def generate_game_states(word):
                             possible_incorrect_letters)
                         incorrect_states.append((index, chosen_letter))
 
-            if incorrect_states:
-                sample_size = random.randint(1, len(incorrect_states))
-                sample_of_incorrect_states = random.sample(
-                    incorrect_states, sample_size)
-            else:
-                sample_of_incorrect_states = []
+            sample_of_incorrect_states = random.sample(incorrect_states, random.randint(
+                1, len(incorrect_states))) if incorrect_states else []
 
-            game_states.append({'correct_state': correct_state,
-                                'incorrect_state': sample_of_incorrect_states, 'word': word})
+            letters_not_in_word = [
+                letter for letter in alphabet if letter not in word]
+            num_incorrect_letters = random.randint(1, 10)
+            incorrect_letters = random.sample(
+                letters_not_in_word, num_incorrect_letters)
+
+            game_states.append({
+                'correct_state': correct_state,
+                'incorrect_state': sample_of_incorrect_states,
+                'incorrect_letters': incorrect_letters,
+                'word': word
+            })
 
         all_game_states.extend(game_states)
 

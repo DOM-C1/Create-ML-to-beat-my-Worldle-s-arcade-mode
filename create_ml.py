@@ -16,12 +16,19 @@ def load_and_parse_json(file_path):
 def encode_game_state(game_state_dict, word_length=5, alphabet='abcdefghijklmnopqrstuvwxyz'):
     correct_positions = np.zeros((word_length, len(alphabet)), dtype=int)
     misplaced_positions = np.zeros((word_length, len(alphabet)), dtype=int)
+    incorrect_letters_vector = np.zeros(len(alphabet), dtype=int)
     for pos, letter in game_state_dict.get('correct_state', []):
         correct_positions[pos][alphabet.index(letter)] = 1
     for pos, letter in game_state_dict.get('incorrect_state', []):
         misplaced_positions[pos][alphabet.index(letter)] = 1
-    input_vector = np.concatenate(
-        [correct_positions.flatten(), misplaced_positions.flatten()])
+    for letter in game_state_dict.get('incorrect_letters', []):
+        incorrect_letters_vector[alphabet.index(letter)] = 1
+
+    input_vector = np.concatenate([
+        correct_positions.flatten(),
+        misplaced_positions.flatten(),
+        incorrect_letters_vector
+    ])
     return input_vector
 
 
@@ -43,7 +50,7 @@ def create_3d_dataset(data, word_length=5, alphabet_size=26, max_states_per_word
         num_missing_states = max_states_per_word - len(word_encoded_states)
         if num_missing_states > 0:
             padding = np.zeros(
-                (num_missing_states, word_length * alphabet_size))
+                (num_missing_states, word_length * alphabet_size * 2 + alphabet_size))
             word_encoded_states.extend(padding)
         all_encoded_states.append(word_encoded_states)
     dataset_3d = np.array(all_encoded_states)
@@ -62,23 +69,27 @@ X_train, X_test, Y_train, Y_test = train_test_split(
     X.numpy(), Y.numpy(), test_size=0.14, random_state=42)
 train_dataset = TensorDataset(torch.tensor(X_train), torch.tensor(Y_train))
 test_dataset = TensorDataset(torch.tensor(X_test), torch.tensor(Y_test))
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+train_loader = DataLoader(train_dataset, batch_size=50, shuffle=True)
+test_loader = DataLoader(test_dataset, batch_size=150, shuffle=False)
 
 
 class FeedforwardModel(nn.Module):
     def __init__(self):
         super(FeedforwardModel, self).__init__()
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(130000, 256)
+        self.fc1 = nn.Linear(143000, 256)
+        self.dropout1 = nn.Dropout(0.5)
         self.fc2 = nn.Linear(256, 128)
+        self.dropout2 = nn.Dropout(0.5)
         self.fc3 = nn.Linear(128, 64)
         self.fc4 = nn.Linear(64, 130)
 
     def forward(self, x):
         x = self.flatten(x)
         x = torch.relu(self.fc1(x))
+        x = self.dropout1(x)
         x = torch.relu(self.fc2(x))
+        x = self.dropout2(x)
         x = torch.relu(self.fc3(x))
         x = torch.sigmoid(self.fc4(x))
         return x
@@ -91,7 +102,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = model.to(device)
 
 model.train()
-for epoch in range(30):
+for epoch in range(32):
     for inputs, targets in train_loader:
         inputs, targets = inputs.to(device), targets.to(
             device)
@@ -113,5 +124,6 @@ with torch.no_grad():
         outputs = model(inputs)
         predicted = outputs.round()
         total += targets.size(0)
+
         correct += (predicted == targets).sum().item()
 print(f"Test Accuracy: {correct / total*100}, Test Loss: {loss.item()}")

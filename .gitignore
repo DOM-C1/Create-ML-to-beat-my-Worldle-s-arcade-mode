@@ -2,3 +2,5 @@ five_letter_words
 game_states
 wordle_solver.pth
 list_of_words.json
+create_five_letter_words.py
+wordle_game
